@@ -3,7 +3,12 @@
 Ce dépôt ne contient pas de code métier : il vérifie depuis les serveurs de
 GitHub que les deux hôtes de production répondent.
 
-- Sonde : `https://brocs.arrimage.com/health.php` et `https://brocante.arrimage.com/health.php`
+- Sondes (toutes attendues en 200) :
+  - `https://brocs.arrimage.com/health.php`
+  - `https://brocs.arrimage.com/portail/`
+  - `https://brocs.arrimage.com/la-friperie-de-naty/` (boutique témoin)
+  - `https://brocante.arrimage.com/health.php`
+  - `https://brocante.arrimage.com/`
 - Fréquence : toutes les 5 minutes (`*/5 * * * *`)
 - Tout autre code que 200 (503 = base, disque ou quota IA en défaut) ouvre une
   issue « Surveillance : site indisponible », assignée au propriétaire du dépôt.

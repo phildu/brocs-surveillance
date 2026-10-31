@@ -32,7 +32,12 @@ jobs:
             echo
           } > /tmp/report.md
           ko=0
-          for url in https://brocs.arrimage.com/health.php https://brocante.arrimage.com/health.php; do
+          urls="https://brocs.arrimage.com/health.php
+          https://brocs.arrimage.com/portail/
+          https://brocs.arrimage.com/la-friperie-de-naty/
+          https://brocante.arrimage.com/health.php
+          https://brocante.arrimage.com/"
+          for url in $urls; do
             body=$(mktemp)
             code=$(curl -sS -o "$body" -w '%{http_code}' --max-time 20 "$url") || code=000
             detail=$(head -c 300 "$body" 2>/dev/null | tr '\n' ' ')
