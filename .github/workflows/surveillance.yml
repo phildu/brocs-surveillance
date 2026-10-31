@@ -1,0 +1,78 @@
+name: Surveillance des deux sites
+
+# Sonde externe : GitHub interroge /health.php toutes les cinq minutes.
+# 200 = tout va bien, 503 (ou pas de réponse) = incident : une issue est
+# ouverte et le propriétaire du dépôt est notifié. Elle se referme seule au
+# retour à la normale. GitHub désactive les tâches planifiées d'un dépôt
+# public après 60 jours sans activité : un commit relance le compte à rebours.
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: surveillance
+  cancel-in-progress: false
+
+jobs:
+  sonde:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Sonder /health.php des deux hôtes
+        id: probe
+        run: |
+          set -u
+          {
+            echo "Sonde /health.php — $(date -u '+%Y-%m-%d %H:%M UTC')"
+            echo
+          } > /tmp/report.md
+          ko=0
+          for url in https://brocs.arrimage.com/health.php https://brocante.arrimage.com/health.php; do
+            body=$(mktemp)
+            code=$(curl -sS -o "$body" -w '%{http_code}' --max-time 20 "$url") || code=000
+            detail=$(head -c 300 "$body" 2>/dev/null | tr '\n' ' ')
+            echo "$url -> HTTP $code"
+            if [ "$code" != "200" ]; then
+              ko=1
+              printf -- '- `%s` : HTTP %s — %s\n' "$url" "$code" "${detail:-pas de réponse}" >> /tmp/report.md
+            fi
+          done
+          if [ "$ko" = "1" ]; then
+            echo "ko=1" >> "$GITHUB_OUTPUT"
+            cat /tmp/report.md >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "ko=0" >> "$GITHUB_OUTPUT"
+            echo "Les deux hôtes répondent 200." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Ouvrir l'alerte
+        if: steps.probe.outputs.ko == '1'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OWNER: ${{ github.repository_owner }}
+        run: |
+          gh label create surveillance --color B60205 --description "Alertes de la sonde /health.php" >/dev/null 2>&1 || true
+          open=$(gh issue list --label surveillance --state open --json number --jq '.[0].number')
+          if [ -n "$open" ]; then
+            echo "Alerte déjà ouverte (#$open)." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          gh issue create \
+            --title "Surveillance : site indisponible" \
+            --label surveillance \
+            --assignee "$OWNER" \
+            --body-file /tmp/report.md
+
+      - name: Refermer l'alerte au retour à la normale
+        if: steps.probe.outputs.ko != '1'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          for n in $(gh issue list --label surveillance --state open --json number --jq '.[].number'); do
+            gh issue close "$n" --comment "Retour à la normale : /health.php répond 200 sur les deux hôtes."
+          done
