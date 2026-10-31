@@ -54,6 +54,7 @@ jobs:
         if: steps.probe.outputs.ko == '1'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
           OWNER: ${{ github.repository_owner }}
         run: |
           gh label create surveillance --color B60205 --description "Alertes de la sonde /health.php" >/dev/null 2>&1 || true
@@ -72,6 +73,7 @@ jobs:
         if: steps.probe.outputs.ko != '1'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
         run: |
           for n in $(gh issue list --label surveillance --state open --json number --jq '.[].number'); do
             gh issue close "$n" --comment "Retour à la normale : /health.php répond 200 sur les deux hôtes."
